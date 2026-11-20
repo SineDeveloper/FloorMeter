@@ -7,6 +7,7 @@
 #include "Config.h"
 #include "WebHtml.h"
 #include "WebScript.h"
+#include "StorageManager.h"
 
 extern bool isMeasuring;
 extern float globalDistance;
@@ -14,6 +15,16 @@ extern float globalPitch;
 extern float globalRoll;
 extern void resetDataSystem();
 extern void triggerIMUCalibrate();
+
+// 3-point geometry + live wheel heights (owned by FloorMeter.ino)
+extern float g_frontTrackMm;
+extern float g_rearArmMm;
+extern float g_sectionMm;
+extern float g_zLeftMm;
+extern float g_zRightMm;
+extern float g_zRearMm;
+
+extern StorageManager storage;
 
 class HttpServerManager {
 private:
@@ -54,14 +65,50 @@ private:
         String pStr = String(globalPitch, 1);
         String rStr = String(globalRoll, 1);
         String mStr = isMeasuring ? "true" : "false";
+        String zlStr = String(g_zLeftMm, 2);
+        String zrStr = String(g_zRightMm, 2);
+        String zrearStr = String(g_zRearMm, 2);
 
         String json = "{";
         json += "\"dist\":" + dStr + ",";
         json += "\"pitch\":" + pStr + ",";
         json += "\"roll\":" + rStr + ",";
+        json += "\"z_left\":" + zlStr + ",";
+        json += "\"z_right\":" + zrStr + ",";
+        json += "\"z_rear\":" + zrearStr + ",";
         json += "\"measuring\":" + mStr;
         json += "}";
         server.send(200, "application/json", json);
+    }
+
+    String configJson() {
+        String out = "{";
+        out += "\"front_track_mm\":" + String(g_frontTrackMm, 2) + ",";
+        out += "\"rear_arm_mm\":" + String(g_rearArmMm, 2) + ",";
+        out += "\"section_mm\":" + String(g_sectionMm, 2);
+        out += "}";
+        return out;
+    }
+
+    void handleConfigGet() {
+        server.send(200, "application/json", configJson());
+    }
+
+    void handleConfigPost() {
+        float front = server.arg("front_track_mm").toFloat();
+        float rear  = server.arg("rear_arm_mm").toFloat();
+        float sec   = server.arg("section_mm").toFloat();
+        if (front <= 0.0f) front = DEFAULT_FRONT_TRACK_MM;
+        if (rear  <= 0.0f) rear  = DEFAULT_REAR_ARM_MM;
+        if (sec   < 10.0f) sec   = DEFAULT_SECTION_MM;
+        g_frontTrackMm = front;
+        g_rearArmMm    = rear;
+        g_sectionMm    = sec;
+        if (storage.saveConfig(front, rear, sec)) {
+            server.send(200, "application/json", configJson());
+        } else {
+            server.send(500, "text/plain", "Failed to save config");
+        }
     }
 
     void handleDownload() {
@@ -84,6 +131,8 @@ public:
         server.on("/action", std::bind(&HttpServerManager::handleAction, this));
         server.on("/getdata", std::bind(&HttpServerManager::handleGetData, this));
         server.on("/download", std::bind(&HttpServerManager::handleDownload, this));
+        server.on("/config", HTTP_GET, std::bind(&HttpServerManager::handleConfigGet, this));
+        server.on("/config", HTTP_POST, std::bind(&HttpServerManager::handleConfigPost, this));
 
         server.begin();
         Serial.print("[+] Dashboard Ready at: ");

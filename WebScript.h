@@ -127,6 +127,44 @@ const char HTML_PART_2[] PROGMEM = R"=====(
             }
         }
 
+        function setConfigMsg(text, ok) {
+            const el = document.getElementById('config-msg');
+            el.innerText = text;
+            el.className = 'config-msg ' + (ok ? 'config-msg-ok' : 'config-msg-err');
+        }
+
+        function loadConfig() {
+            fetch('/config')
+                .then(res => res.json())
+                .then(cfg => {
+                    document.getElementById('cfg-front').value = cfg.front_track_mm;
+                    document.getElementById('cfg-rear').value = cfg.rear_arm_mm;
+                    document.getElementById('cfg-section').value = cfg.section_mm;
+                })
+                .catch(err => console.error('Error loading config:', err));
+        }
+
+        function saveConfig() {
+            const front = parseFloat(document.getElementById('cfg-front').value);
+            const rear = parseFloat(document.getElementById('cfg-rear').value);
+            const section = parseFloat(document.getElementById('cfg-section').value);
+            if (!(front > 0) || !(rear > 0) || !(section >= 10)) {
+                setConfigMsg('Geometry values are invalid (mm, section >= 10).', false);
+                return;
+            }
+            const params = new URLSearchParams();
+            params.append('front_track_mm', front);
+            params.append('rear_arm_mm', rear);
+            params.append('section_mm', section);
+            setConfigMsg('Saving...');
+            fetch('/config', { method: 'POST', body: params })
+                .then(res => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    setConfigMsg('Geometry saved.', true);
+                })
+                .catch(err => setConfigMsg('Failed to save: ' + err.message, false));
+        }
+
         setInterval(() => {
             fetch('/getdata')
                 .then(res => res.json())
@@ -134,6 +172,9 @@ const char HTML_PART_2[] PROGMEM = R"=====(
                     document.getElementById('val-dist').innerText = data.dist.toFixed(3);
                     document.getElementById('val-pitch').innerText = data.pitch.toFixed(1);
                     document.getElementById('val-roll').innerText = data.roll.toFixed(1);
+                    document.getElementById('val-zl').innerText = data.z_left.toFixed(2);
+                    document.getElementById('val-zr').innerText = data.z_right.toFixed(2);
+                    document.getElementById('val-zrear').innerText = data.z_rear.toFixed(2);
                     
                     toggleButtonState(data.measuring);
                     evaluateSafety(data.measuring, data.pitch, data.roll);
@@ -147,6 +188,7 @@ const char HTML_PART_2[] PROGMEM = R"=====(
                 .catch(err => console.error("Error fetching telemetry:", err));
         }, 200); 
         drawChart();
+        loadConfig();
     </script>
 </body>
 </html>

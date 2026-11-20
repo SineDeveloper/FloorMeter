@@ -15,14 +15,92 @@ float globalDistance = 0.0;
 float globalPitch = 0.0;
 float globalRoll = 0.0;
 
+// ---- 3-point geometry: live wheel heights (mm, relative to body center) ---
+float g_frontTrackMm = DEFAULT_FRONT_TRACK_MM;
+float g_rearArmMm    = DEFAULT_REAR_ARM_MM;
+float g_sectionMm    = DEFAULT_SECTION_MM;
+float g_zLeftMm  = 0.0;
+float g_zRightMm = 0.0;
+float g_zRearMm  = 0.0;
+
+// ---- Section accumulation state (one rolling summary per SECTION_MM) ------
+int   secCurrent = -1;      // index of the section being accumulated
+float secSumP = 0.0, secSumR = 0.0;
+float secSumL = 0.0, secSumRmm = 0.0, secSumRear = 0.0;
+float secMinL = 0.0, secMaxL = 0.0;
+float secMinR = 0.0, secMaxR = 0.0;
+float secMinRear = 0.0, secMaxRear = 0.0;
+int   secCount = 0;
+float secEndDist = 0.0;
+
 unsigned long simulationStartTime = 0;
 bool isSimulatingRun = false;
 unsigned long timeOffset = 0; 
+
+// Instantaneous wheel heights from IMU angles (mm, relative to body center).
+void computeWheelHeights() {
+    float rollRad  = globalRoll  * PI / 180.0;
+    float pitchRad = globalPitch * PI / 180.0;
+    g_zLeftMm  = SIGN_ROLL_LEFT  * (g_frontTrackMm * 0.5f) * tan(rollRad);
+    g_zRightMm = SIGN_ROLL_RIGHT * (g_frontTrackMm * 0.5f) * tan(rollRad);
+    g_zRearMm  = SIGN_PITCH_REAR * g_rearArmMm * tan(pitchRad);
+}
+
+void resetSectionTracker() {
+    secCurrent = -1;
+    secSumP = secSumR = 0.0;
+    secSumL = secSumRmm = secSumRear = 0.0;
+    secMinL = secMinR = secMinRear = 0.0;
+    secMaxL = secMaxR = secMaxRear = 0.0;
+    secCount = 0;
+    secEndDist = 0.0;
+}
+
+// Write the SECTION summary row for the section that just finished.
+void finalizeSection() {
+    if (secCount == 0) return;
+    float inv = 1.0f / secCount;
+    storage.logSection(secCurrent, secEndDist,
+                       secSumP * inv, secSumR * inv,
+                       secSumL * inv, secSumRmm * inv, secSumRear * inv,
+                       secCount,
+                       secMaxL - secMinL, secMaxR - secMinR, secMaxRear - secMinRear);
+    Serial.printf("[SEC] Section %d done: Z_L=%.1f Z_R=%.1f Z_Rear=%.1f mm (%d samples)\n",
+                  secCurrent, secSumL * inv, secSumRmm * inv, secSumRear * inv, secCount);
+}
+
+// Fold one sample into the current section; emit a SECTION row per boundary crossed.
+void updateSectionTracker(float distanceM, float pitch, float roll,
+                          float zL, float zR, float zRear) {
+    int cur = (int)(distanceM * 1000.0f / g_sectionMm);
+    if (cur > secCurrent) {
+        if (secCurrent >= 0) finalizeSection();
+        secCurrent = cur;
+        secSumP = secSumR = 0.0;
+        secSumL = secSumRmm = secSumRear = 0.0;
+        secMinL = secMaxL = zL;
+        secMinR = secMaxR = zR;
+        secMinRear = secMaxRear = zRear;
+        secCount = 0;
+    }
+    secSumP += pitch;
+    secSumR += roll;
+    secSumL += zL;
+    secSumRmm += zR;
+    secSumRear += zRear;
+    if (zL < secMinL) secMinL = zL;   if (zL > secMaxL) secMaxL = zL;
+    if (zR < secMinR) secMinR = zR;   if (zR > secMaxR) secMaxR = zR;
+    if (zRear < secMinRear) secMinRear = zRear;
+    if (zRear > secMaxRear) secMaxRear = zRear;
+    secCount++;
+    secEndDist = distanceM;
+}
 
 void resetDataSystem() {
     storage.clearData();     
     encoder.resetDistance(); 
     timeOffset = millis();   
+    resetSectionTracker();
     Serial.println("[+] Session fully initialized. Ready for new recording.");
 }
 
@@ -40,6 +118,8 @@ void setup() {
 
     if (storage.begin()) {
         storage.initLogFile();
+        // Restore persisted geometry (defaults are applied + written on first boot).
+        storage.loadConfig(&g_frontTrackMm, &g_rearArmMm, &g_sectionMm);
     }
 
     network.begin();
@@ -80,6 +160,9 @@ void loop() {
     globalPitch = imu.getPitch();
     globalRoll = imu.getRoll();
 
+    // Live wheel heights (mm) — always kept fresh for the web dashboard.
+    computeWheelHeights();
+
     static unsigned long lastLog = 0;
     if (isMeasuring && (millis() - lastLog >= 300)) {
         lastLog = millis();
@@ -93,9 +176,13 @@ void loop() {
 
         uint32_t relativeTimestamp = millis() - timeOffset;
 
-        Serial.printf("LOGGING,Time:%u,Dist:%.3f,Pitch:%.1f,Roll:%.1f,Status:%s\n", 
-                      relativeTimestamp, globalDistance, globalPitch, globalRoll, safetyText.c_str());
-        
-        storage.logData(relativeTimestamp, globalDistance, globalPitch, globalRoll, safetyText);
+        Serial.printf("LOGGING,Time:%u,Dist:%.3f,P:%.1f,R:%.1f,Z_L:%.1f,Z_R:%.1f,Z_Rear:%.1f,Status:%s\n",
+                      relativeTimestamp, globalDistance, globalPitch, globalRoll,
+                      g_zLeftMm, g_zRightMm, g_zRearMm, safetyText.c_str());
+
+        storage.logSample(relativeTimestamp, secCurrent < 0 ? 0 : secCurrent, globalDistance,
+                          globalPitch, globalRoll, g_zLeftMm, g_zRightMm, g_zRearMm, safetyText);
+        updateSectionTracker(globalDistance, globalPitch, globalRoll,
+                             g_zLeftMm, g_zRightMm, g_zRearMm);
     }
 }
