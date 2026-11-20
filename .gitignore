@@ -1,0 +1,12 @@
+﻿# Build / IDE artifacts
+.vscode/
+build/
+*.o
+*.a
+*.elf
+*.bin
+
+# OS junk
+Thumbs.db
+desktop.ini
+
