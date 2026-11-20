@@ -1,0 +1,4 @@
+# FloorMeter Project Rules
+
+- **Always update README.md**: whenever you make any code, config, or behavior change to this project, rewrite/update the relevant sections of `README.md` in the same task to keep the documentation accurate.
+- Keep all comments and documentation in English only.
