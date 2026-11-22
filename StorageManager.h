@@ -2,6 +2,7 @@
 #define STORAGE_MANAGER_H
 
 #include <LittleFS.h>
+#include <math.h>
 #include "Config.h"
 
 class StorageManager {
@@ -45,7 +46,7 @@ public:
             Serial.println("[-] Failed to open file for writing");
             return;
         }
-        file.println("Row_Type,Section,Timestamp(ms),Distance(m),Pitch(deg),Roll(deg),Z_Left(mm),Z_Right(mm),Z_Rear(mm),Samples,Range_Left(mm),Range_Right(mm),Range_Rear(mm),Safety_Status");
+        file.println("Row_Type,Section,Timestamp(ms),Distance(cm),Pitch(deg),Roll(deg),Z_Left(mm),Z_Right(mm),Z_Rear(mm),Samples,Range_Left(mm),Range_Right(mm),Range_Rear(mm),Safety_Status");
         file.close();
         Serial.println("[+] Data file initialized with headers.");
     }
@@ -65,9 +66,13 @@ public:
                    const String& safetyStatus) {
         File file = LittleFS.open(DATA_FILE, FILE_APPEND);
         if (!file) return;
-        file.printf("SAMPLE,%d,%u,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,,,,,%s\n",
-                    section, (unsigned)timestamp, distance,
-                    pitch, roll, zLeft, zRight, zRear, safetyStatus.c_str());
+        // Distance: cm, whole number, clamped >= 0. Wheel heights: whole mm (signed).
+        float distCm = distance * 100.0f;
+        if (distCm < 0.0f) distCm = 0.0f;
+        file.printf("SAMPLE,%d,%u,%ld,%.2f,%.2f,%ld,%ld,%ld,,,,,%s\n",
+                    section, (unsigned)timestamp, (long)(distCm + 0.5f),
+                    pitch, roll, (long)lroundf(zLeft), (long)lroundf(zRight), (long)lroundf(zRear),
+                    safetyStatus.c_str());
         file.close();
     }
 
@@ -79,12 +84,14 @@ public:
                     float rangeLeft, float rangeRight, float rangeRear) {
         File file = LittleFS.open(DATA_FILE, FILE_APPEND);
         if (!file) return;
-        file.printf("SECTION,%d,,%.3f,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.2f,%.2f,%.2f,,\n",
-                    section, distanceEnd,
+        float distCm = distanceEnd * 100.0f;
+        if (distCm < 0.0f) distCm = 0.0f;
+        file.printf("SECTION,%d,,%ld,%.2f,%.2f,%ld,%ld,%ld,%ld,%ld,%ld,%ld,,\n",
+                    section, (long)(distCm + 0.5f),
                     pitchAvg, rollAvg,
-                    zLeftAvg, zRightAvg, zRearAvg,
+                    (long)lroundf(zLeftAvg), (long)lroundf(zRightAvg), (long)lroundf(zRearAvg),
                     samples,
-                    rangeLeft, rangeRight, rangeRear);
+                    (long)lroundf(rangeLeft), (long)lroundf(rangeRight), (long)lroundf(rangeRear));
         file.close();
     }
 

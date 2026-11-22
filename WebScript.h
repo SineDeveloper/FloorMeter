@@ -137,25 +137,25 @@ const char HTML_PART_2[] PROGMEM = R"=====(
             fetch('/config')
                 .then(res => res.json())
                 .then(cfg => {
-                    document.getElementById('cfg-front').value = cfg.front_track_mm;
-                    document.getElementById('cfg-rear').value = cfg.rear_arm_mm;
-                    document.getElementById('cfg-section').value = cfg.section_mm;
+                    document.getElementById('cfg-front').value = cfg.front_track_mm / 10;
+                    document.getElementById('cfg-rear').value = cfg.rear_arm_mm / 10;
+                    document.getElementById('cfg-section').value = cfg.section_mm / 10;
                 })
                 .catch(err => console.error('Error loading config:', err));
         }
 
         function saveConfig() {
-            const front = parseFloat(document.getElementById('cfg-front').value);
-            const rear = parseFloat(document.getElementById('cfg-rear').value);
-            const section = parseFloat(document.getElementById('cfg-section').value);
-            if (!(front > 0) || !(rear > 0) || !(section >= 10)) {
-                setConfigMsg('Geometry values are invalid (mm, section >= 10).', false);
+            const frontCm = parseFloat(document.getElementById('cfg-front').value);
+            const rearCm = parseFloat(document.getElementById('cfg-rear').value);
+            const sectionCm = parseFloat(document.getElementById('cfg-section').value);
+            if (!(frontCm > 0) || !(rearCm > 0) || !(sectionCm >= 1)) {
+                setConfigMsg('Geometry values are invalid (cm, section >= 1).', false);
                 return;
             }
             const params = new URLSearchParams();
-            params.append('front_track_mm', front);
-            params.append('rear_arm_mm', rear);
-            params.append('section_mm', section);
+            params.append('front_track_mm', frontCm * 10);
+            params.append('rear_arm_mm', rearCm * 10);
+            params.append('section_mm', sectionCm * 10);
             setConfigMsg('Saving...');
             fetch('/config', { method: 'POST', body: params })
                 .then(res => {
@@ -169,12 +169,12 @@ const char HTML_PART_2[] PROGMEM = R"=====(
             fetch('/getdata')
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('val-dist').innerText = data.dist.toFixed(3);
+                    document.getElementById('val-dist').innerText = Math.max(0, Math.round(data.dist));
                     document.getElementById('val-pitch').innerText = data.pitch.toFixed(1);
                     document.getElementById('val-roll').innerText = data.roll.toFixed(1);
-                    document.getElementById('val-zl').innerText = data.z_left.toFixed(2);
-                    document.getElementById('val-zr').innerText = data.z_right.toFixed(2);
-                    document.getElementById('val-zrear').innerText = data.z_rear.toFixed(2);
+                    document.getElementById('val-zl').innerText = Math.round(data.z_left);
+                    document.getElementById('val-zr').innerText = Math.round(data.z_right);
+                    document.getElementById('val-zrear').innerText = Math.round(data.z_rear);
                     
                     toggleButtonState(data.measuring);
                     evaluateSafety(data.measuring, data.pitch, data.roll);

@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <LittleFS.h>
+#include <math.h>
 #include "Config.h"
 #include "WebHtml.h"
 #include "WebScript.h"
@@ -61,13 +62,18 @@ private:
     }
 
     void handleGetData() {
-        String dStr = String(globalDistance, 3);
+        // Distance is reported in centimeters, whole number, never negative
+        // (clamped so encoder backward drift can never show a minus value).
+        float distCm = globalDistance * 100.0f;
+        if (distCm < 0.0f) distCm = 0.0f;
+        String dStr = String((long)(distCm + 0.5f));
         String pStr = String(globalPitch, 1);
         String rStr = String(globalRoll, 1);
         String mStr = isMeasuring ? "true" : "false";
-        String zlStr = String(g_zLeftMm, 2);
-        String zrStr = String(g_zRightMm, 2);
-        String zrearStr = String(g_zRearMm, 2);
+        // Wheel heights: whole mm (signed) so sub-mm sensor jitter is not visible
+        String zlStr = String((long)lroundf(g_zLeftMm));
+        String zrStr = String((long)lroundf(g_zRightMm));
+        String zrearStr = String((long)lroundf(g_zRearMm));
 
         String json = "{";
         json += "\"dist\":" + dStr + ",";

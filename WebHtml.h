@@ -58,20 +58,20 @@ const char HTML_PART_1[] PROGMEM = R"=====(
         <h2>Super Flat Floor & Forklift Safety Monitor</h2>
 
         <div class='data-grid'>
-            <div class='data-card'>DISTANCE (m)<div id='val-dist' class='data-val'>0.000</div></div>
+            <div class='data-card'>DISTANCE (cm)<div id='val-dist' class='data-val'>0</div></div>
             <div class='data-card'>PITCH (deg)<div id='val-pitch' class='data-val'>0.0</div></div>
             <div class='data-card'>ROLL (deg)<div id='val-roll' class='data-val'>0.0</div></div>
-            <div class='data-card'>WHEEL Z LEFT (mm)<div id='val-zl' class='data-val data-val-z'>0.00</div></div>
-            <div class='data-card'>WHEEL Z RIGHT (mm)<div id='val-zr' class='data-val data-val-z'>0.00</div></div>
-            <div class='data-card'>REAR Z (mm)<div id='val-zrear' class='data-val data-val-z'>0.00</div></div>
+            <div class='data-card'>WHEEL Z LEFT (mm)<div id='val-zl' class='data-val data-val-z'>0</div></div>
+            <div class='data-card'>WHEEL Z RIGHT (mm)<div id='val-zr' class='data-val data-val-z'>0</div></div>
+            <div class='data-card'>REAR Z (mm)<div id='val-zrear' class='data-val data-val-z'>0</div></div>
         </div>
 
         <div class='config-panel'>
-            <div class='config-title'>3-Point Geometry (mm)</div>
+            <div class='config-title'>3-Point Geometry (cm)</div>
             <div class='config-grid'>
-                <div class='config-field'>Front axle track<input id='cfg-front' type='number' step='0.1' value='800'></div>
-                <div class='config-field'>Rear arm length (pivot to axle)<input id='cfg-rear' type='number' step='0.1' value='600'></div>
-                <div class='config-field'>Section length (CSV grouping)<input id='cfg-section' type='number' step='10' value='300'></div>
+                <div class='config-field'>Front axle track (cm)<input id='cfg-front' type='number' step='1' value='80'></div>
+                <div class='config-field'>Rear arm length (cm, pivot to axle)<input id='cfg-rear' type='number' step='1' value='60'></div>
+                <div class='config-field'>Section length (cm, CSV grouping)<input id='cfg-section' type='number' step='1' value='30'></div>
             </div>
             <button onclick='saveConfig()' class='btn' style='margin-top:8px;'>Save Geometry</button>
             <div id='config-msg' class='config-msg'></div>

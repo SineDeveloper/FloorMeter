@@ -65,8 +65,9 @@ void finalizeSection() {
                        secSumL * inv, secSumRmm * inv, secSumRear * inv,
                        secCount,
                        secMaxL - secMinL, secMaxR - secMinR, secMaxRear - secMinRear);
-    Serial.printf("[SEC] Section %d done: Z_L=%.1f Z_R=%.1f Z_Rear=%.1f mm (%d samples)\n",
-                  secCurrent, secSumL * inv, secSumRmm * inv, secSumRear * inv, secCount);
+    Serial.printf("[SEC] Section %d done: Z_L=%d Z_R=%d Z_Rear=%d mm (%d samples)\n",
+                  secCurrent, (int)lroundf(secSumL * inv), (int)lroundf(secSumRmm * inv),
+                  (int)lroundf(secSumRear * inv), secCount);
 }
 
 // Fold one sample into the current section; emit a SECTION row per boundary crossed.
@@ -176,9 +177,12 @@ void loop() {
 
         uint32_t relativeTimestamp = millis() - timeOffset;
 
-        Serial.printf("LOGGING,Time:%u,Dist:%.3f,P:%.1f,R:%.1f,Z_L:%.1f,Z_R:%.1f,Z_Rear:%.1f,Status:%s\n",
-                      relativeTimestamp, globalDistance, globalPitch, globalRoll,
-                      g_zLeftMm, g_zRightMm, g_zRearMm, safetyText.c_str());
+        float distCm = globalDistance * 100.0f;
+        if (distCm < 0.0f) distCm = 0.0f;
+        Serial.printf("LOGGING,Time:%u,Dist:%ld cm,P:%.1f,R:%.1f,Z_L:%d mm,Z_R:%d mm,Z_Rear:%d mm,Status:%s\n",
+                      relativeTimestamp, (long)(distCm + 0.5f), globalPitch, globalRoll,
+                      (int)lroundf(g_zLeftMm), (int)lroundf(g_zRightMm), (int)lroundf(g_zRearMm),
+                      safetyText.c_str());
 
         storage.logSample(relativeTimestamp, secCurrent < 0 ? 0 : secCurrent, globalDistance,
                           globalPitch, globalRoll, g_zLeftMm, g_zRightMm, g_zRearMm, safetyText);
